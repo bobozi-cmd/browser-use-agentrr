@@ -26,8 +26,8 @@ class SystemPrompt:
 			self._load_prompt_template()
 			prompt = self.prompt_template.format(max_actions=self.max_actions_per_step)
 
-		if self.default_action_description:
-			prompt += f'\n[Functions]\n{self.default_action_description}'
+		# if self.default_action_description:
+		# 	prompt += f'\n[Functions]\n{self.default_action_description}'
 
 		if extend_system_message:
 			prompt += f'\n{extend_system_message}'

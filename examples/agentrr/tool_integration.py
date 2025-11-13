@@ -14,16 +14,6 @@ from browser_use.controller.views import (
 	ClickElementAction,
 	CloseTabAction,
 	DoneAction,
-	DragDropAction,
-	GoToUrlAction,
-	InputTextAction,
-	NoParamsAction,
-	OpenTabAction,
-	Position,
-	ScrollAction,
-	SearchGoogleAction,
-	SendKeysAction,
-	SwitchTabAction,
 )
 from langchain_openai import ChatOpenAI
 
@@ -31,7 +21,7 @@ from pydantic import BaseModel, Field
 
 api_key = os.getenv("OPENAI_API_KEY", None)
 base_url = os.getenv("OPENAI_BASE_URL", None)
-model_name = os.getenv("LLM_MODEL", "gpt-4o")
+model_name = os.getenv("LLM_MODEL", "google/gemini-2.5-pro")
 os.environ['BROWSER_USE_LOGGING_LEVEL'] = 'debug'
 
 
@@ -75,14 +65,14 @@ controller = AgentRRController()
 # controller = Controller()
 registry = controller.registry
 
-# class PatentInfo(BaseModel):
-#     name: str = Field(..., description='The name of the patent.')
-#     type: str = Field(..., description="The type of the patent. (optional values: {'发明': '发明专利', '实用新型': '实用新型和外观设计专利', '软件著作': '计算机软件著作权'})")
-#     status: str = Field(..., description="The authorization status of the patent. (optional values: ['已授权', '已经授权', '未被授权', '已申请待授权'])")
-#     application_date: str = Field(..., description="The application date of the patent, in 'YYYY-MM-DD' or 'YYYY.MM.DD' format.")
-#     application_number: str = Field(..., description="The application number of the patent.")
-#     authorization_date: Optional[str] = Field(..., description="he authorization date of the patent, in 'YYYY-MM-DD' or 'YYYY.MM.DD' format. This key is required only if 'status' is '已授权' or '已经授权'.")
-#     authorization_number: Optional[str] = Field(..., description="The authorization number of the patent. This key is required only if 'status' is '已授权' or '已经授权'.")
+class PatentInfo(BaseModel):
+    name: str = Field(..., description='The name of the patent.')
+    type: str = Field(..., description="The type of the patent. (optional values: {'发明': '发明专利', '实用新型': '实用新型和外观设计专利', '软件著作': '计算机软件著作权'})")
+    status: str = Field(..., description="The authorization status of the patent. (optional values: ['已授权', '已经授权', '未被授权', '已申请待授权'])")
+    application_date: str = Field(..., description="The application date of the patent, in 'YYYY-MM-DD' or 'YYYY.MM.DD' format.")
+    application_number: str = Field(..., description="The application number of the patent.")
+    authorization_date: Optional[str] = Field(..., description="he authorization date of the patent, in 'YYYY-MM-DD' or 'YYYY.MM.DD' format. This key is required only if 'status' is '已授权' or '已经授权'.")
+    authorization_number: Optional[str] = Field(..., description="The authorization number of the patent. This key is required only if 'status' is '已授权' or '已经授权'.")
 
 patent_info = """name": "The name of the patent. This key should be in each dictionary within the `patents` list. Variable type: str",
 "type": "The type of the patent. This key should be in each dictionary within the `patents` list. Variable type: str. (optional values: {'发明': '发明专利', '实用新型': '实用新型和外观设计专利', '软件著作': '计算机软件著作权'})",
@@ -93,18 +83,18 @@ patent_info = """name": "The name of the patent. This key should be in each dict
 "authorization_number": "The authorization number of the patent. This key is required only if 'status' is '已授权' or '已经授权'. Variable type: str"""
 
 class FillAchievementsAction(BaseModel):
-    # patents: list[PatentInfo] = Field(..., description="A list of patent information. Each item in the list is a dictionary representing one patent.")
-    patents: list[dict] = Field(default=[], description=f"A list of patent information. Each item in the list is a dictionary representing one patent. Each Patent information is a dict, contains: {patent_info}")
+    patents: list[PatentInfo] = Field(default=[], description="A list of patent information. Each item in the list is a dictionary representing one patent.")
+    # patents: list[dict] = Field(default=[], description=f"A list of patent information. Each item in the list is a dictionary representing one patent. Each Patent information is a dict, contains: {patent_info}")
 
 
 @registry.action(
     '[Integrated API] Fills in patent declaration information, supporting single or multiple patent entries.',
     param_model=FillAchievementsAction,
 )
-async def fill_achievements(kwargs: FillAchievementsAction, browser: BrowserContext):
+async def fill_patents(kwargs: FillAchievementsAction, browser: BrowserContext):
     page = await browser.get_current_page()
     
-    patents = kwargs.patents
+    patents = kwargs.model_dump().get('patents', [])
     if not patents:
         return
 
@@ -160,12 +150,13 @@ async def fill_achievements(kwargs: FillAchievementsAction, browser: BrowserCont
         if patent.get('application_number'):
             await page.locator(f'input[name="fieldPatentApplyNo_{i}"]').fill(patent['application_number'])
 
-    msg = f'call fill_achievements'
+    msg = f'call fill_patents'
     return ActionResult(extracted_content=msg)
 
 
 async def main():
-    task = '专利类型是发明, 名称为一种内存管理方法以及装置, 已经授权, 授权时间为2021.07.20, 授权号为CN 107885666 B, 申请时间为2016.09.28, 申请号为201610860581.5.\n'
+    # task = '专利类型是发明, 名称为一种内存管理方法以及装置, 已经授权, 授权时间为2021.07.20, 授权号为CN 107885666 B, 申请时间为2016.09.28, 申请号为201610860581.5.\n'
+    task = '帮我填写专利申报: 专利类型是发明, 名称为基于多源遥感数据的新闻场景三维重建与可视化方法, 已经授权, 授权时间为2025.06.27, 授权号为CN 119904592 B, 申请时间为2025.04.01, 申请号为202510399528.9; 专利类型是发明, 名称为一种内存管理方法以及装置, 未被授权, 申请时间为2016.09.28, 申请号为201610860581.5\n'
     llm = ChatOpenAI(model=model_name, base_url=base_url, api_key=api_key)
 
     async with cdp_browser_ctx() as cdp_browser:
@@ -182,11 +173,11 @@ async def main():
         try:
             page = await context.get_current_page()
             await page.goto('https://form.sjtu.edu.cn/infoplus/form/34893090/render')
-            await agent.run(max_steps=2)
+            await agent.run(max_steps=5)
         except Exception as e:
             print(e)
 
-        input(">")
+        # input(">")
 
 if __name__ == "__main__":
     asyncio.run(main())
